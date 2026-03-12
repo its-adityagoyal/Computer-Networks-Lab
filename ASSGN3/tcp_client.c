@@ -10,10 +10,36 @@
 char *server_ip, *roll;
 int sockfd;
 
+int send_all(int sock, char *buf, int len){
+    int total = 0;
+    while(total < len){
+        int n = write(sock, buf + total, len - total);
+        if(n <= 0) return -1;
+        total += n;
+    }
+    return total;
+}
+
+int recv_until_null(int sock, char *buf, int maxlen) {
+    int total = 0;
+    while (total < maxlen - 1) {
+        int n = read(sock, buf + total, maxlen - 1 - total);
+        if (n <= 0) return -1;   
+        for (int i = 0; i < n; i++) {
+            if (buf[total + i] == '\0') {
+                return total + i;   
+            }
+        }
+        total += n;
+    }
+    buf[maxlen - 1] = '\0';
+    return total;
+}
+
 void myhandler(int sig){
     char request[1024];
     sprintf(request,"%s#CONTINUE",roll);
-    write(sockfd, request, sizeof(request));
+    send_all(sockfd, request, strlen(request)+1);
     close(sockfd);
     printf("Client closed\n");
     exit(0);
@@ -27,6 +53,7 @@ int main(int argc, char *argv[]){
     //Socket
     struct sockaddr_in server_addr;
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) perror("socket failed\n");
 
     //Server address
     server_addr.sin_family = AF_INET;
@@ -46,7 +73,7 @@ int main(int argc, char *argv[]){
         sprintf(request,"%s#%s",roll,input);
 
         //Write
-        write(sockfd, request, sizeof(request));
+        send_all(sockfd, request, strlen(request)+1);
         if(!strcmp(input,"EXIT")){
             break;
         }else if(!strcmp(input,"CONTINUE")){
@@ -55,7 +82,7 @@ int main(int argc, char *argv[]){
 
         //Receive
         char respond[1024];
-        read(sockfd, respond, sizeof(respond));
+        recv_until_null(sockfd, respond, sizeof(respond));
         printf("Received response: %s\n",respond);
     }
     close(sockfd);

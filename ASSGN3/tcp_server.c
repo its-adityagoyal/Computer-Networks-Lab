@@ -8,6 +8,32 @@
 #include <string.h>
 #include <stdlib.h> 
 
+int send_all(int sock, char *buf, int len){
+    int total = 0;
+    while(total < len){
+        int n = write(sock, buf + total, len - total);
+        if(n <= 0) return -1;
+        total += n;
+    }
+    return total;
+}
+
+int recv_until_null(int sock, char *buf, int maxlen) {
+    int total = 0;
+    while (total < maxlen - 1) {
+        int n = read(sock, buf + total, maxlen - 1 - total);
+        if (n <= 0) return -1;   
+        for (int i = 0; i < n; i++) {
+            if (buf[total + i] == '\0') {
+                return total + i;   
+            }
+        }
+        total += n;
+    }
+    buf[maxlen - 1] = '\0';
+    return total;
+}
+
 int main(){
     char roll[] = "23EC30067";
     int port=30067;
@@ -35,22 +61,21 @@ int main(){
     struct sockaddr_in client_addr;
     socklen_t len = sizeof(client_addr);
     int client_sock = accept(sockfd, (struct sockaddr*) &client_addr, &len);
+    if (client_sock < 0) perror("socket failed\n");
 
     while(1){
         char buffer[1024];
-        int x=read(client_sock, buffer, sizeof(buffer));
-        buffer[x]='\0';
+        if (recv_until_null(client_sock, buffer, sizeof(buffer)) < 0) break;
 
         char *prefix = strtok(buffer, "#");
         char *request= strtok(NULL,"#");
         
-        // printf("Client IP: %d & Port:%d\n", ntohs(client_addr.sin_port),port);
         printf("Client IP: %s & Port: %d\n",inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port));
         printf("Received message: %s\n",request);
 
         if(strcmp(prefix,roll)){
             char respond[1024]="Unauthorized client";
-            write(client_sock, respond, sizeof(respond));
+            send_all(client_sock, respond, strlen(respond)+1);
         }else{
             char *OP=strtok(request,"|");
             if(!strcmp(OP,"EXIT")){
@@ -58,51 +83,53 @@ int main(){
             }else if(!strcmp(OP,"CONTINUE")){
                 return_listen=true;
                 break;
-            }
-            int n = atoi(strtok(NULL, "|"));
-            char *num = strtok(NULL, "|");
+            }else if(!strcmp(OP,"SUM") || !strcmp(OP,"MIN") || !strcmp(OP,"MAX") || !strcmp(OP,"AVG")){
 
-            int arr[n];
-            arr[0]=atoi(strtok(num," "));
-            for(int i=0;i<n;i++){
-                if(i) arr[i]=atoi(strtok(NULL," "));
-            }
-            if(!strcmp(OP,"SUM")){
-                char respond[1024];
-                int sum=0;
-                for(int i=0;i<n;i++) sum+=arr[i];
-                sprintf(respond, "%d", sum);
-                write(client_sock, respond, sizeof(respond));
-            }else if(!strcmp(OP,"MAX")){
-                char respond[1024];
-                int maximum=0;
+                int n = atoi(strtok(NULL, "|"));
+                char *num = strtok(NULL, "|");
+                int arr[n];
+                arr[0]=atoi(strtok(num," "));
                 for(int i=0;i<n;i++){
-                    if(maximum<arr[i]){
-                        maximum=arr[i];
-                    }
+                    if(i) arr[i]=atoi(strtok(NULL," "));
                 }
-                sprintf(respond, "%d", maximum);
-                write(client_sock, respond, sizeof(respond));         
-            }else if(!strcmp(OP,"MIN")){
-                char respond[1024];
-                int minimum=1e9;
-                for(int i=0;i<n;i++){
-                    if(minimum>arr[i]){
-                        minimum=arr[i];
+
+                if(!strcmp(OP,"SUM")){
+                    char respond[1024];
+                    int sum=0;
+                    for(int i=0;i<n;i++) sum+=arr[i];
+                    sprintf(respond, "%d", sum);
+                    send_all(client_sock, respond, strlen(respond)+1);
+                }else if(!strcmp(OP,"MAX")){
+                    char respond[1024];
+                    int maximum=arr[0];
+                    for(int i=0;i<n;i++){
+                        if(maximum<arr[i]){
+                            maximum=arr[i];
+                        }
                     }
+                    sprintf(respond, "%d", maximum);
+                    send_all(client_sock, respond, strlen(respond)+1);         
+                }else if(!strcmp(OP,"MIN")){
+                    char respond[1024];
+                    int minimum=arr[0];
+                    for(int i=0;i<n;i++){
+                        if(minimum>arr[i]){
+                            minimum=arr[i];
+                        }
+                    }
+                    sprintf(respond, "%d", minimum);
+                    send_all(client_sock, respond, strlen(respond)+1);          
+                }else if(!strcmp(OP,"AVG")){
+                    char respond[1024];
+                    float avg=0;
+                    for(int i=0;i<n;i++) avg+=(float)arr[i];
+                    avg=avg/(float)n;
+                    sprintf(respond, "%.2f", avg);
+                    send_all(client_sock, respond, strlen(respond)+1);           
                 }
-                sprintf(respond, "%d", minimum);
-                write(client_sock, respond, sizeof(respond));          
-            }else if(!strcmp(OP,"AVG")){
-                char respond[1024];
-                float avg=0;
-                for(int i=0;i<n;i++) avg+=(float)arr[i];
-                avg=avg/(float)n;
-                sprintf(respond, "%.2f", avg);
-                write(client_sock, respond, sizeof(respond));           
             }else{
                 char respond[1024]="Wrong Operation!";
-                write(client_sock, respond, sizeof(respond));
+                send_all(client_sock, respond, strlen(respond)+1);
             }
         }
     }
