@@ -11,6 +11,9 @@ int main(int argc, char *argv[]){
     if(argc==3){
         server_ip=argv[1];
         roll=argv[2];
+    }else{
+        printf("Usage: %s <server_ip> <roll>\n", argv[0]);
+        return 1;
     }
 
     int sockfd;
@@ -28,7 +31,8 @@ int main(int argc, char *argv[]){
         input[strcspn(input,"\n")]='\0';
         char request[1024];
         sprintf(request,"%s#%s",roll,input);
-        sendto(sockfd, request, 1024, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+
+        sendto(sockfd, request, strlen(request)+1, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
         if(!strcmp(input,"EXIT")){
             break;
         }

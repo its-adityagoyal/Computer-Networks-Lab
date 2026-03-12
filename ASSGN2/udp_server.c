@@ -30,64 +30,67 @@ int main()
     while(1){
         char buffer[1024];
         int x=recvfrom(sockfd, buffer, sizeof(buffer), 0,(struct sockaddr *)&client_addr, &len);
-        buffer[x]='\0';
-        char *prefix = strtok(buffer, "#");
+        buffer[x]='\0';   //Just for safety
+        char *prefix = strtok(buffer,"#");
         char *request= strtok(NULL,"#");
         
-        printf("Client IP: %d & Port:%d\n", ntohs(client_addr.sin_port),port);
+        printf("Client IP: %s & Port: %d\n",inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port));
         printf("Received message: %s\n",request);
 
         if(strcmp(prefix,roll)){
-            sendto(sockfd, "Unauthorized client", 19, 0,(struct sockaddr *)&client_addr, len);
+            char respond[1024]="Unauthorized client";
+            sendto(sockfd, respond, strlen(respond)+1, 0,(struct sockaddr *)&client_addr, len);
         }else{
             char *OP=strtok(request,"|");
             if(!strcmp(OP,"EXIT")){
                 break;
-            }
-            int n = atoi(strtok(NULL, "|"));
-            char *num = strtok(NULL, "|");
+            }else if(!strcmp(OP,"SUM")||!strcmp(OP,"MIN")||!strcmp(OP,"MAX")||!strcmp(OP,"AVG")){
+                int n = atoi(strtok(NULL, "|"));
+                char *num = strtok(NULL, "|");
+            
+                int arr[n];
+                arr[0]=atoi(strtok(num," "));
+                for(int i=0;i<n;i++){
+                    if(i) arr[i]=atoi(strtok(NULL," "));
+                }
 
-            int arr[n];
-            arr[0]=atoi(strtok(num," "));
-            for(int i=0;i<n;i++){
-                if(i) arr[i]=atoi(strtok(NULL," "));
-            }
-            if(!strcmp(OP,"SUM")){
-                char respond[1024];
-                int sum=0;
-                for(int i=0;i<n;i++) sum+=arr[i];
-                sprintf(respond, "%d", sum);
-                sendto(sockfd,respond,sizeof(respond), 0,(struct sockaddr *)&client_addr, len);
-            }else if(!strcmp(OP,"MAX")){
-                char respond[1024];
-                int maximum=0;
-                for(int i=0;i<n;i++){
-                    if(maximum<arr[i]){
-                        maximum=arr[i];
+                if(!strcmp(OP,"SUM")){
+                    char respond[1024];
+                    int sum=0;
+                    for(int i=0;i<n;i++) sum+=arr[i];
+                    sprintf(respond, "%d", sum);
+                    sendto(sockfd,respond,strlen(respond)+1, 0,(struct sockaddr *)&client_addr, len);
+                }else if(!strcmp(OP,"MAX")){
+                    char respond[1024];
+                    int maximum=arr[0];
+                    for(int i=0;i<n;i++){
+                        if(maximum<arr[i]){
+                            maximum=arr[i];
+                        }
                     }
-                }
-                sprintf(respond, "%d", maximum);
-                sendto(sockfd,respond,sizeof(respond), 0,(struct sockaddr *)&client_addr, len);            
-            }else if(!strcmp(OP,"MIN")){
-                char respond[1024];
-                int minimum=1e9;
-                for(int i=0;i<n;i++){
-                    if(minimum>arr[i]){
-                        minimum=arr[i];
+                    sprintf(respond, "%d", maximum);
+                    sendto(sockfd,respond,strlen(respond)+1, 0,(struct sockaddr *)&client_addr, len);            
+                }else if(!strcmp(OP,"MIN")){
+                    char respond[1024];
+                    int minimum=arr[0];
+                    for(int i=0;i<n;i++){
+                        if(minimum>arr[i]){
+                            minimum=arr[i];
+                        }
                     }
+                    sprintf(respond, "%d", minimum);
+                    sendto(sockfd,respond,strlen(respond)+1, 0,(struct sockaddr *)&client_addr, len);            
+                }else if(!strcmp(OP,"AVG")){
+                    char respond[1024];
+                    float avg=0;
+                    for(int i=0;i<n;i++) avg+=(float)arr[i];
+                    avg=avg/(float)n;
+                    sprintf(respond, "%.2f", avg);
+                    sendto(sockfd,respond,strlen(respond)+1, 0,(struct sockaddr *)&client_addr, len);            
                 }
-                sprintf(respond, "%d", minimum);
-                sendto(sockfd,respond,sizeof(respond), 0,(struct sockaddr *)&client_addr, len);            
-            }else if(!strcmp(OP,"AVG")){
-                char respond[1024];
-                float avg=0;
-                for(int i=0;i<n;i++) avg+=(float)arr[i];
-                avg=avg/(float)n;
-                sprintf(respond, "%.2f", avg);
-                sendto(sockfd,respond,sizeof(respond), 0,(struct sockaddr *)&client_addr, len);            
             }else{
                 char respond[1024]="Wrong Operation!";
-                sendto(sockfd,respond,sizeof(respond), 0,(struct sockaddr *)&client_addr, len);
+                sendto(sockfd,respond,strlen(respond)+1, 0,(struct sockaddr *)&client_addr, len);
             }
         }
     }
